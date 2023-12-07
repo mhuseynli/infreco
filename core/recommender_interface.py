@@ -4,7 +4,6 @@ from abc import ABC, abstractmethod
 class RecommenderInterface(ABC):
 
     @abstractmethod
-    # We removed data because it will get it from rabbitmq
     def train(self, parameters):
         """
         Trains the recommender model.

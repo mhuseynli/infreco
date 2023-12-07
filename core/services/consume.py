@@ -1,11 +1,15 @@
-# consume.py
 import logging
 import json
-import pika
+import os
+import django
+
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'infreco.settings')
+django.setup()
 
 from core.database import db
-from .rabbitmq import get_rabbitmq_connection
+from core.services.rabbitmq import get_rabbitmq_connection
 
+print("Consume started...")
 logger = logging.getLogger(__name__)
 
 
