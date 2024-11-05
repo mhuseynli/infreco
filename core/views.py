@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 # Example class of a specific recommender algorithm
 class MyRecommender(RecommenderInterface):
-    def train(self, data, parameters):
+    def train(self, parameters):
         # Implement training logic
         pass
 
@@ -26,8 +26,8 @@ class MyRecommender(RecommenderInterface):
         # Implement recommendation logic
         pass
 
-    def update_model(self, model_path):
-        # Implement model update logic
+    def subscribe(self, event):
+        # Implement event subscribe logic
         pass
 
 
@@ -56,7 +56,7 @@ class TrainRecommenderView(APIView):
         parameters = request.data.get('parameters', {})
 
         recommender = MyRecommender()
-        recommender.train(data, parameters)
+        recommender.train(data)
 
         return Response({"message": "Training initiated"}, status=status.HTTP_202_ACCEPTED)
 
