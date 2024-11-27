@@ -2,9 +2,10 @@ import os
 import json
 from collections import defaultdict
 from .base import BaseTrainer
-from ..data_processing import fetch_webshop_data
+from core.data_processing import fetch_webshop_data, preprocess_items
 
 TRAINING_DIR = "training_data"
+
 
 def ensure_training_dir(webshop_id):
     """Ensure training directory exists for a webshop."""
@@ -12,49 +13,51 @@ def ensure_training_dir(webshop_id):
     os.makedirs(directory, exist_ok=True)
     return directory
 
+
 class ContentBasedTrainer(BaseTrainer):
     def __init__(self, webshop_id):
         self.webshop_id = webshop_id
 
     def train(self):
-        """Train content-based recommendations based on item attributes."""
-        users, items, events = fetch_webshop_data(self.webshop_id)
+        """Train content-based recommendations."""
+        users, items, events, attributes = fetch_webshop_data(self.webshop_id)
 
-        # Precompute item similarities
+        if not attributes:
+            raise ValueError(f"Attributes not found for webshop ID: {self.webshop_id}")
+
+        # Process items using attributes
+        items_df = preprocess_items(items, attributes)
+
+        # Calculate item similarity
         item_similarities = defaultdict(dict)
-        for item_a in items:
-            for item_b in items:
-                if item_a["_id"] == item_b["_id"]:
+        for i, item_a in items_df.iterrows():
+            for j, item_b in items_df.iterrows():
+                if i == j:
                     continue
-                similarity_score = self.calculate_similarity(item_a["attributes"], item_b["attributes"])
+                similarity_score = self.calculate_similarity(item_a, item_b, attributes)
                 if similarity_score > 0:
                     item_similarities[str(item_a["_id"])][str(item_b["_id"])] = similarity_score
 
         # Save training data
         directory = ensure_training_dir(self.webshop_id)
-        file_path = os.path.join(directory, "content_based.json")
-        with open(file_path, "w") as f:
+        with open(os.path.join(directory, "content_based.json"), "w") as f:
             json.dump(item_similarities, f)
 
-        print(f"Content-based training completed for {self.webshop_id}. Data saved to {file_path}.")
-
-    def calculate_similarity(self, item_a, item_b):
-        """Calculate similarity between two items based on attributes."""
+    def calculate_similarity(self, item_a, item_b, attributes):
+        """Calculate similarity between two items."""
         score = 0
-
-        # Shared categories
-        categories_a = set(item_a.get("categories", []))
-        categories_b = set(item_b.get("categories", []))
-        score += len(categories_a & categories_b) * 3  # High weight for shared categories
-
-        # Same brand
-        if item_a.get("brand") == item_b.get("brand"):
-            score += 2  # Medium weight for same brand
-
-        # Price similarity (within 20% range)
-        price_a = item_a.get("price", 0)
-        price_b = item_b.get("price", 0)
-        if 0.8 * price_a <= price_b <= 1.2 * price_a:
-            score += 1  # Low weight for similar price
-
+        for attr in attributes.get("attributes", []):
+            name = attr["name"]
+            weight = attr["weight"]
+            if name in item_a and name in item_b:
+                if isinstance(item_a[name], list) and isinstance(item_b[name], list):
+                    # Overlap for array attributes
+                    score += len(set(item_a[name]) & set(item_b[name])) * weight
+                elif isinstance(item_a[name], (int, float)) and isinstance(item_b[name], (int, float)):
+                    # Similarity for numeric attributes
+                    if 0.8 * item_a[name] <= item_b[name] <= 1.2 * item_a[name]:
+                        score += weight
+                elif item_a[name] == item_b[name]:
+                    # Exact match for categorical/string attributes
+                    score += weight
         return score

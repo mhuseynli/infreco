@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.urls import path
 
-from core.views.events import EventView
+from core.views.event import EventView
 from core.views.item import ItemCreateView, ItemDetailView
 from core.views.recommendation import RecommendCollaborativeView, RecommendContentBasedView, RecommendSurpriseView
 from core.views.training import TrainCollaborativeView, TrainContentBasedView, TrainSurpriseView
@@ -18,7 +18,7 @@ urlpatterns = [
     path('users/<str:user_id>/', UserDetailView.as_view(), name='user-detail'),  # Retrieve, update, delete user
 
     path('items/', ItemCreateView.as_view(), name='item-create'),  # Create item
-    path('items/<str:item_id>/', ItemDetailView.as_view(), name='item-detail'),  # Retrieve, update, delete item
+    path("items/<str:external_id>/", ItemDetailView.as_view(), name="item-detail"),  # Retrieve, update, delete item
 
     # Recommender endpoints
     path('recommender/train/collaborative/', TrainCollaborativeView.as_view(), name='train-collaborative'),

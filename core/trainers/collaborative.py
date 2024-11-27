@@ -2,7 +2,7 @@ import os
 import json
 from collections import defaultdict
 from .base import BaseTrainer
-from ..data_processing import fetch_webshop_data, group_users_by_age
+from ..data_processing import fetch_webshop_data
 
 TRAINING_DIR = "training_data"
 

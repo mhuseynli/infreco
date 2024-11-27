@@ -147,7 +147,7 @@ LOGGING = {
             'handlers': ['console'],
             'level': 'INFO',
         },
-        'core.serializers': {  # Replace with your app's logger name
+        'core': {  # Replace with your app's logger name
             'handlers': ['console'],
             'level': 'DEBUG',
             'propagate': False,

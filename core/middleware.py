@@ -1,5 +1,8 @@
 from django.http import JsonResponse
 from core.database import db
+from core.utils.logger import get_logger
+
+logger = get_logger()
 
 
 class APIKeyMiddleware:
@@ -12,6 +15,8 @@ class APIKeyMiddleware:
         self.get_response = get_response
 
     def __call__(self, request):
+        logger.info(f"Processing request path: {request.path}")
+
         # Define paths that require API key validation
         protected_paths = [
             '/webshops/',

@@ -1,8 +1,7 @@
 from rest_framework import generics, status
 from rest_framework.response import Response
+from rest_framework.exceptions import NotFound, ValidationError
 from core.database import db
-from bson import ObjectId
-
 from core.serializers.user import UserSerializer
 
 
@@ -25,13 +24,13 @@ class UserDetailView(generics.RetrieveUpdateDestroyAPIView):
 
     def get_object(self):
         webshop_id = self.request.webshop.get("id")
-        user_id = self.kwargs.get("user_id")
+        external_id = self.kwargs.get("user_id")  # Use user_id as external_id
         if not webshop_id:
-            return Response({"detail": "Missing webshop ID in headers."}, status=status.HTTP_400_BAD_REQUEST)
+            raise ValidationError({"detail": "Missing webshop ID in headers."})
 
-        user = db.users.find_one({"_id": ObjectId(user_id), "webshop_id": webshop_id})
+        user = db.users.find_one({"external_id": external_id, "webshop_id": webshop_id})
         if not user:
-            raise Response({"detail": "User not found."}, status=status.HTTP_404_NOT_FOUND)
+            raise NotFound({"detail": f"User with external_id '{external_id}' not found."})
         return user
 
     def retrieve(self, request, *args, **kwargs):
@@ -43,12 +42,16 @@ class UserDetailView(generics.RetrieveUpdateDestroyAPIView):
         webshop_id = self.request.webshop.get("id")
         user = self.get_object()
 
-        serializer = self.get_serializer(user, data=request.data, partial=True, context={"webshop_id": webshop_id})
+        serializer = self.get_serializer(
+            user, data=request.data, partial=True, context={"webshop_id": webshop_id}
+        )
         serializer.is_valid(raise_exception=True)
         updated_user = serializer.save()
         return Response(updated_user)
 
     def delete(self, request, *args, **kwargs):
         user = self.get_object()
-        db.users.delete_one({"_id": ObjectId(user["_id"])})
+        result = db.users.delete_one({"external_id": user["external_id"], "webshop_id": self.request.webshop["id"]})
+        if result.deleted_count == 0:
+            raise NotFound({"detail": f"User with external_id '{user['external_id']}' not found."})
         return Response({"detail": "User deleted successfully."}, status=status.HTTP_200_OK)

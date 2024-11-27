@@ -1,9 +1,10 @@
 import os
 import json
 from collections import defaultdict
-from .base import BaseRecommender
+from core.recommenders.base import BaseRecommender
 
 TRAINING_DIR = "training_data"
+
 
 class ContentBasedRecommender(BaseRecommender):
     def __init__(self, webshop_id):
@@ -14,28 +15,33 @@ class ContentBasedRecommender(BaseRecommender):
         """Load content-based training data."""
         file_path = os.path.join(TRAINING_DIR, self.webshop_id, "content_based.json")
         if not os.path.exists(file_path):
-            raise FileNotFoundError(f"Content-based training data not found at {file_path}")
+            raise FileNotFoundError(f"Content-based training data not found for webshop {self.webshop_id}.")
         with open(file_path, "r") as f:
             self.item_similarities = json.load(f)
 
-    def recommend(self, user_id, events, items=None, n=10):
-        """Recommend items based on item attributes."""
-        # Get items the user has already interacted with
-        interacted_items = {str(event["item_id"]) for event in events if str(event["user_id"]) == user_id}
-        print(f"Interacted items for user {user_id}: {interacted_items}")
+    def recommend(self, user_id, events, items, n=10):
+        """
+        Recommend items based on user interactions.
 
-        # Collect recommendations by aggregating similarities for non-interacted items
+        :param user_id: ID of the user to generate recommendations for.
+        :param events: List of events for the webshop.
+        :param items: List of items for the webshop.
+        :param n: Number of recommendations to return.
+        :return: List of recommended items with scores.
+        """
+        # Get all items the user has interacted with
+        interacted_items = {str(event["product_id"]) for event in events if str(event["user_id"]) == user_id}
+
+        # Aggregate recommendations based on similarity scores
         recommendations = defaultdict(float)
         for item_id in interacted_items:
             similar_items = self.item_similarities.get(item_id, {})
-            print(f"Similar items for {item_id}: {similar_items}")
-
             for similar_item_id, similarity_score in similar_items.items():
                 if similar_item_id not in interacted_items:
                     recommendations[similar_item_id] += similarity_score
 
-        # Sort by aggregated score and return top N
+        # Sort recommendations by score and return the top N
         sorted_recommendations = sorted(recommendations.items(), key=lambda x: x[1], reverse=True)
-        print(f"Aggregated recommendations: {sorted_recommendations}")
-
-        return [{"item_id": item_id, "score": score} for item_id, score in sorted_recommendations[:n]]
+        return [
+            {"item_id": str(item_id), "score": score} for item_id, score in sorted_recommendations[:n]
+        ]
