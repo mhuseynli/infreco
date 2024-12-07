@@ -22,7 +22,8 @@ class APIKeyMiddleware:
             '/webshops/',
             '/users/',
             '/events/',
-            '/items/'
+            '/items/',
+            '/recommender/'
         ]
 
         # Define paths that should be excluded from API key validation
@@ -34,6 +35,7 @@ class APIKeyMiddleware:
 
         # Validate API key for protected paths
         if any(request.path.startswith(path) for path in protected_paths):
+            print(request.headers.get('X-API-KEY'))
             api_key = request.headers.get('X-API-KEY')
             if not api_key:
                 return JsonResponse(

@@ -1,8 +1,13 @@
+import logging
+
 from rest_framework import generics, status
+from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 from core.database import db
 from bson import ObjectId
 from core.serializers.webshop import WebshopSerializer
+
+logger = logging.getLogger("core")
 
 
 class RegisterWebshopView(generics.CreateAPIView):
@@ -29,7 +34,11 @@ class RegisterWebshopView(generics.CreateAPIView):
                 },
                 status=status.HTTP_201_CREATED,
             )
+        except ValidationError as e:
+            logger.warning(f"Validation error details: {e.detail}")
+            return Response({"errors": e.detail}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
+            logger.error(f"Unexpected error: {str(e)}")
             return Response({"detail": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
@@ -39,6 +48,8 @@ class WebshopView(generics.GenericAPIView):
     def get(self, request, *args, **kwargs):
         """Fetch webshop details by API key."""
         api_key = request.headers.get("X-API-KEY")
+        logger.info(f"API Key received: {api_key}")
+
         if not api_key:
             return Response({"detail": "API key required."}, status=status.HTTP_401_UNAUTHORIZED)
 
@@ -49,11 +60,21 @@ class WebshopView(generics.GenericAPIView):
 
         # Fetch the type information and allowed attributes
         type_data = db.attributes.find_one({"_id": ObjectId(webshop["type_id"])})
-        webshop["allowed_attributes"] = type_data["attributes"] if type_data else []
-        webshop["type"] = type_data["type"] if type_data else "Unknown"
+        webshop["allowed_attributes"] = type_data.get("attributes", []) if type_data else []
+        webshop["type"] = type_data.get("type", "Unknown") if type_data else "Unknown"
 
-        serializer = self.get_serializer(webshop)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        # Serialize the data
+        serialized_data = {
+            "email": webshop.get("email"),
+            "webshop_name": webshop.get("webshop_name"),
+            "is_verified": webshop.get("is_verified", False),
+            "recommendation_engine": webshop.get("recommendation_engine", ""),
+            "engine_parameters": webshop.get("engine_parameters", {}),
+            "api_endpoint": webshop.get("api_endpoint", ""),
+            "type": webshop["type"],
+            "allowed_attributes": webshop["allowed_attributes"],
+        }
+        return Response(serialized_data, status=status.HTTP_200_OK)
 
     def put(self, request, *args, **kwargs):
         """Update webshop details."""

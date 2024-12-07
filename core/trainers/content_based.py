@@ -1,10 +1,13 @@
 import os
 import json
 from collections import defaultdict
-from .base import BaseTrainer
-from core.data_processing import fetch_webshop_data, preprocess_items
+from sklearn.metrics.pairwise import cosine_similarity
+from sklearn.preprocessing import StandardScaler
+import pandas as pd
 
-TRAINING_DIR = "training_data"
+from core.data_processing import fetch_webshop_data, preprocess_items, preprocess_events
+from core.trainers.base import BaseTrainer
+from infreco.settings import TRAINING_DIR
 
 
 def ensure_training_dir(webshop_id):
@@ -16,7 +19,7 @@ def ensure_training_dir(webshop_id):
 
 class ContentBasedTrainer(BaseTrainer):
     def __init__(self, webshop_id):
-        self.webshop_id = webshop_id
+        super().__init__(webshop_id)  # Call the base class constructor
 
     def train(self):
         """Train content-based recommendations."""
@@ -25,39 +28,37 @@ class ContentBasedTrainer(BaseTrainer):
         if not attributes:
             raise ValueError(f"Attributes not found for webshop ID: {self.webshop_id}")
 
-        # Process items using attributes
+        # Preprocess items and events
         items_df = preprocess_items(items, attributes)
+        events_df = preprocess_events(events)
 
-        # Calculate item similarity
+        # Merge item and event data to include event weights
+        event_item_weights = events_df.groupby("product_id")["event_weight"].sum().to_dict()
+        items_df["event_weight"] = items_df["_id"].map(event_item_weights).fillna(0)
+
+        # Exclude non-numeric columns
+        non_feature_columns = ["_id", "name", "description", "webshop_id", "created_at", "updated_at"]
+        feature_columns = [col for col in items_df.columns if col not in non_feature_columns]
+
+        if not feature_columns:
+            raise ValueError("No numeric features found for similarity calculation.")
+
+        # Normalize the data for numeric features
+        scaler = StandardScaler()
+        feature_matrix = scaler.fit_transform(items_df[feature_columns].fillna(0))
+
+        # Calculate cosine similarity between items
+        similarity_matrix = cosine_similarity(feature_matrix)
+
+        # Convert the similarity matrix into a dictionary for easier storage
         item_similarities = defaultdict(dict)
-        for i, item_a in items_df.iterrows():
-            for j, item_b in items_df.iterrows():
-                if i == j:
-                    continue
-                similarity_score = self.calculate_similarity(item_a, item_b, attributes)
-                if similarity_score > 0:
-                    item_similarities[str(item_a["_id"])][str(item_b["_id"])] = similarity_score
+        for i, item_id in enumerate(items_df["_id"]):
+            for j, sim_score in enumerate(similarity_matrix[i]):
+                if i != j and sim_score > 0:
+                    item_similarities[item_id][items_df["_id"][j]] = sim_score
 
         # Save training data
         directory = ensure_training_dir(self.webshop_id)
         with open(os.path.join(directory, "content_based.json"), "w") as f:
             json.dump(item_similarities, f)
-
-    def calculate_similarity(self, item_a, item_b, attributes):
-        """Calculate similarity between two items."""
-        score = 0
-        for attr in attributes.get("attributes", []):
-            name = attr["name"]
-            weight = attr["weight"]
-            if name in item_a and name in item_b:
-                if isinstance(item_a[name], list) and isinstance(item_b[name], list):
-                    # Overlap for array attributes
-                    score += len(set(item_a[name]) & set(item_b[name])) * weight
-                elif isinstance(item_a[name], (int, float)) and isinstance(item_b[name], (int, float)):
-                    # Similarity for numeric attributes
-                    if 0.8 * item_a[name] <= item_b[name] <= 1.2 * item_a[name]:
-                        score += weight
-                elif item_a[name] == item_b[name]:
-                    # Exact match for categorical/string attributes
-                    score += weight
-        return score
+        print(f"Training completed for webshop ID: {self.webshop_id}")

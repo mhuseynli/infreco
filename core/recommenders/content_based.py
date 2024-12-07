@@ -1,9 +1,12 @@
 import os
 import json
 from collections import defaultdict
-from core.recommenders.base import BaseRecommender
 
-TRAINING_DIR = "training_data"
+from bson import ObjectId
+
+from core.database import db
+from core.recommenders.base import BaseRecommender
+from infreco.settings import TRAINING_DIR
 
 
 class ContentBasedRecommender(BaseRecommender):
@@ -19,9 +22,9 @@ class ContentBasedRecommender(BaseRecommender):
         with open(file_path, "r") as f:
             self.item_similarities = json.load(f)
 
-    def recommend(self, user_id, events, items, n=10):
+    def recommend(self, user_id, events, items, n=50):
         """
-        Recommend items based on user interactions.
+        Recommend items based on user interactions and dynamic preferences.
 
         :param user_id: ID of the user to generate recommendations for.
         :param events: List of events for the webshop.
@@ -29,7 +32,11 @@ class ContentBasedRecommender(BaseRecommender):
         :param n: Number of recommendations to return.
         :return: List of recommended items with scores.
         """
-        # Get all items the user has interacted with
+        # Load user profile
+        user = db.users.find_one({"_id": ObjectId(user_id)})
+        preferences = user.get("preferences", {})
+
+        # Get items user interacted with
         interacted_items = {str(event["product_id"]) for event in events if str(event["user_id"]) == user_id}
 
         # Aggregate recommendations based on similarity scores
@@ -38,6 +45,12 @@ class ContentBasedRecommender(BaseRecommender):
             similar_items = self.item_similarities.get(item_id, {})
             for similar_item_id, similarity_score in similar_items.items():
                 if similar_item_id not in interacted_items:
+                    # Apply preference weight
+                    item = db.items.find_one({"_id": ObjectId(similar_item_id)})
+                    if item:
+                        for attr, weight in preferences.items():
+                            if attr in item.get("categories", []) or attr == item.get("brand"):
+                                similarity_score *= weight
                     recommendations[similar_item_id] += similarity_score
 
         # Sort recommendations by score and return the top N

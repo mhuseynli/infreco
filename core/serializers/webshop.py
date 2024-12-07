@@ -1,7 +1,7 @@
 from bson import ObjectId
 from rest_framework import serializers
 from rest_framework.exceptions import ValidationError
-from ..database import db
+from core.database import db
 import bcrypt
 import uuid
 import hashlib

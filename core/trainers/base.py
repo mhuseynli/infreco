@@ -1,9 +1,6 @@
-from abc import ABC, abstractmethod
+class BaseTrainer:
+    def __init__(self, webshop_id):
+        self.webshop_id = webshop_id
 
-class BaseTrainer(ABC):
-    """Abstract base class for trainers."""
-
-    @abstractmethod
     def train(self):
-        """Train the model."""
-        pass
+        raise NotImplementedError("Subclasses should implement this!")

@@ -55,11 +55,16 @@ def preprocess_items(items, attributes):
 
 def preprocess_events(events):
     """Prepare event data with event type weights."""
+    # Fetch all event types and their weights
     event_types = {et["name"]: et["weight"] for et in db.event_types.find()}
+
+    # Map event weights based on `event_id`
+    def get_event_weight(event_id):
+        event_type = db.event_types.find_one({"_id": ObjectId(event_id)})
+        return event_types.get(event_type["name"], 0) if event_type else 0
+
     events_df = pd.DataFrame(events)
-    events_df["event_weight"] = events_df["event_id"].apply(
-        lambda eid: event_types.get(db.event_types.find_one({"_id": ObjectId(eid)})["name"], 0)
-    )
+    events_df["event_weight"] = events_df["event_id"].apply(get_event_weight)
     return events_df
 
 

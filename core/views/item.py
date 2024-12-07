@@ -55,3 +55,18 @@ class ItemDetailView(generics.RetrieveUpdateDestroyAPIView):
         if result.deleted_count == 0:
             raise NotFound({"detail": f"Item with external_id '{item['external_id']}' not found."})
         return Response({"detail": "Item deleted successfully."}, status=status.HTTP_200_OK)
+
+
+class ItemListView(generics.ListAPIView):
+    serializer_class = ItemSerializer
+
+    def get(self, request, *args, **kwargs):
+        """Fetch all items for the current webshop."""
+        webshop = self.request.webshop  # Access webshop object from middleware
+        items = list(db.items.find({"webshop_id": webshop["id"]}))
+
+        # Convert ObjectId to string for all items
+        for item in items:
+            item["_id"] = str(item["_id"])
+
+        return Response({"items": items}, status=status.HTTP_200_OK)
