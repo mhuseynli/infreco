@@ -40,7 +40,8 @@ class UserSerializer(serializers.Serializer):
             "created_at": datetime.now(timezone.utc),
             "updated_at": datetime.now(timezone.utc),
         }
-        db.users.insert_one(user_data)
+        result = db.users.insert_one(user_data)
+        user_data["_id"] = str(result.inserted_id)
         return user_data
 
     def update(self, instance, validated_data):
@@ -57,3 +58,4 @@ class UserSerializer(serializers.Serializer):
         }
         db.users.update_one({"_id": ObjectId(instance["_id"])}, {"$set": updates})
         return {**instance, **updates}
+

@@ -2,7 +2,7 @@ import os
 import json
 from collections import defaultdict
 from sklearn.metrics.pairwise import cosine_similarity
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import StandardScaler, LabelEncoder
 import pandas as pd
 
 from .dynamic_base import DynamicBaseTrainer
@@ -39,19 +39,32 @@ class DynamicContentBasedTrainer(DynamicBaseTrainer):
         # Preprocess items
         items_df = preprocess_items(items, attributes)
 
-        # Exclude non-numeric columns
-        non_feature_columns = ["_id", "name", "description", "webshop_id", "created_at", "updated_at"]
+        # Ensure `_id` and `external_id` are treated as string identifiers
+        items_df["_id"] = items_df["_id"].astype(str)
+        items_df["external_id"] = items_df["external_id"].astype(str)
+
+        # Separate identifiers and non-numeric columns
+        non_feature_columns = ["_id", "external_id", "name", "description", "webshop_id", "created_at", "updated_at"]
         feature_columns = [col for col in items_df.columns if col not in non_feature_columns]
 
         if not feature_columns:
             raise ValueError("No numeric features found for similarity calculation.")
 
+        # Handle categorical external_id using label encoding
+        if "external_id" in items_df.columns:
+            label_encoder = LabelEncoder()
+            items_df["external_id_encoded"] = label_encoder.fit_transform(items_df["external_id"])
+            feature_columns.append("external_id_encoded")
+
         # Normalize the data for numeric features
         scaler = StandardScaler()
         feature_matrix = scaler.fit_transform(items_df[feature_columns].fillna(0))
 
-        # Find the updated item
-        updated_item_id = event_data["product_id"]
+        # Convert the `product_id` from event_data to string
+        updated_item_id = str(event_data["product_id"])
+        if updated_item_id not in items_df["_id"].tolist():
+            raise ValueError(f"Updated item ID {updated_item_id} not found in items data.")
+
         updated_index = items_df["_id"].tolist().index(updated_item_id)
 
         # Calculate cosine similarity for the updated item

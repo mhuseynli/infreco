@@ -36,12 +36,26 @@ class ContentBasedTrainer(BaseTrainer):
         event_item_weights = events_df.groupby("product_id")["event_weight"].sum().to_dict()
         items_df["event_weight"] = items_df["_id"].map(event_item_weights).fillna(0)
 
-        # Exclude non-numeric columns
-        non_feature_columns = ["_id", "name", "description", "webshop_id", "created_at", "updated_at"]
+        # Ensure `_id` and `external_id` are treated as string identifiers
+        items_df["_id"] = items_df["_id"].astype(str)
+        items_df["external_id"] = items_df["external_id"].astype(str)
+
+        # Separate identifiers and non-numeric columns
+        non_feature_columns = ["_id", "external_id", "name", "description", "webshop_id", "created_at", "updated_at"]
         feature_columns = [col for col in items_df.columns if col not in non_feature_columns]
 
         if not feature_columns:
             raise ValueError("No numeric features found for similarity calculation.")
+
+        # Handle categorical external_id using label encoding or one-hot encoding
+        if "external_id" in items_df.columns:
+            # Label Encoding (simple and efficient for unique IDs)
+            from sklearn.preprocessing import LabelEncoder
+            label_encoder = LabelEncoder()
+            items_df["external_id_encoded"] = label_encoder.fit_transform(items_df["external_id"])
+
+            # Add the encoded `external_id` to features
+            feature_columns.append("external_id_encoded")
 
         # Normalize the data for numeric features
         scaler = StandardScaler()

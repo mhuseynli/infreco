@@ -7,8 +7,7 @@ from bson import ObjectId
 from .base import BaseRecommender
 from core.database import db
 
-TRAINING_DIR = "training_data"
-
+from infreco.settings import TRAINING_DIR
 
 class CollaborativeRecommender(BaseRecommender):
     def __init__(self, webshop_id):
